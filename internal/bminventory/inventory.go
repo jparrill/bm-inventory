@@ -562,7 +562,7 @@ func (b *bareMetalInventory) setBootstrapHost(ctx context.Context, cluster model
 	log.Infof("Bootstrap ID is %s", bootstrapId)
 	for i := range cluster.Hosts {
 		if cluster.Hosts[i].ID.String() == bootstrapId.String() {
-			err = b.hostApi.SetBootstrap(ctx, cluster.Hosts[i], true)
+			err = b.hostApi.SetBootstrap(ctx, cluster.Hosts[i], true, db)
 			if err != nil {
 				log.WithError(err).Errorf("failed to update bootstrap host for cluster %s", cluster.ID)
 				return errors.Wrapf(err, "Failed to update bootstrap host for cluster %s", cluster.ID)
