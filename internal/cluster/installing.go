@@ -55,6 +55,7 @@ func (i *installingState) getClusterInstallationState(ctx context.Context, c *mo
 	}
 
 	mappedMastersByRole := mapMasterHostsByStatus(c)
+	log.Infof("getClusterInstallationState hosts map: %#v", mappedMastersByRole)
 
 	// Cluster is in installed
 	mastersInInstalled, ok := mappedMastersByRole[intenralhost.HostStatusInstalled]
