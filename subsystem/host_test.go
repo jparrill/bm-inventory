@@ -2,6 +2,9 @@ package subsystem
 
 import (
 	"context"
+	"fmt"
+	"sync"
+	"time"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
@@ -300,3 +303,56 @@ func getNextSteps(clusterID, hostID strfmt.UUID) models.Steps {
 	Expect(err).NotTo(HaveOccurred())
 	return steps.GetPayload()
 }
+
+var _ = Describe("db_test", func() {
+	ctx := context.Background()
+	var cluster *installer.RegisterClusterCreated
+	var clusterID strfmt.UUID
+
+	AfterEach(func() {
+		clearDB()
+	})
+
+	BeforeEach(func() {
+		var err error
+		cluster, err = bmclient.Installer.RegisterCluster(ctx, &installer.RegisterClusterParams{
+			NewClusterParams: &models.ClusterCreateParams{
+				Name:             swag.String("test cluster"),
+				OpenshiftVersion: swag.String("4.5"),
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	JustBeforeEach(func() {
+		clusterID = *cluster.GetPayload().ID
+	})
+
+	It("db_test", func() {
+		host := registerHost(clusterID)
+		Expect(db.Model(&host).Updates(map[string]interface{}{"status": "known"}).Error).ShouldNot(HaveOccurred())
+
+		tx := db.Begin()
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			updates := map[string]interface{}{"status": "installing", "status_info": "installing"}
+			reply := tx.Model(&models.Host{}).
+				Where("id = ? and cluster_id = ? and status = ?", *host.ID, clusterID, "known").
+				Updates(updates)
+			fmt.Printf("transaction reply.Error %s, row changed %d\n", reply.Error, reply.RowsAffected)
+			time.Sleep(5 * time.Second)
+			Expect(tx.Commit().Error).ShouldNot(HaveOccurred())
+			fmt.Println("commited")
+		}()
+		reply := db.Model(&host).
+			Where("id = ? and cluster_id = ? and status = ?", *host.ID, clusterID, "known").
+			Updates(map[string]interface{}{"status": "known", "status_info": "known"})
+		fmt.Printf("reply.Error %s, row changed %d\n", reply.Error, reply.RowsAffected)
+		wg.Wait()
+		fmt.Println("done watting")
+		host = getHost(clusterID, *host.ID)
+		fmt.Printf("host status: %s status_info: %s\n", *host.Status, *host.StatusInfo)
+	})
+})
