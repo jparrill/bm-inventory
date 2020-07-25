@@ -9,13 +9,14 @@ from time import sleep
 import argparse
 import secrets
 import utils
+import deployment_options
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--target")
-args = parser.parse_args()
+deploy_options = deployment_options.load_deployment_options(parser)
 
 
-if args.target != "oc-ingress":
+if deploy_options.target != "oc-ingress":
     CMD_BIN = 'kubectl'
     OLM_NS = 'olm'
     CAT_SRC = 'operatorhubio-catalog'
@@ -29,17 +30,17 @@ def deploy_oauth_reqs():
     ## Token generation for session_secret
     session_secret = secrets.token_hex(43)
     secret_name = 'prometheus-k8s-proxy'
-    if not utils.check_if_exists('secret', secret_name):
-        cmd = "{} -n assisted-installer create secret generic {} --from-literal=session_secret={}" \
-                .format(CMD_BIN, secret_name, session_secret)
+    if not utils.check_if_exists('secret', secret_name, deploy_options.namespace):
+        cmd = "{} -n {} create secret generic {} --from-literal=session_secret={}" \
+                .format(CMD_BIN, deploy_options.namespace, secret_name, session_secret)
         utils.check_output(cmd)
 
     ## Annotate Serviceaccount
     json_manifest = '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"prometheus-assisted"}}'
     sa_name = 'prometheus-k8s'
     annotation_name = 'serviceaccounts.openshift.io/oauth-redirectreference.assisted-installer-prometheus'
-    cmd = "{} -n assisted-installer annotate serviceaccount {} --overwrite {}='{}'"\
-            .format(CMD_BIN, sa_name, annotation_name, json_manifest)
+    cmd = "{} -n {} annotate serviceaccount {} --overwrite {}='{}'"\
+            .format(CMD_BIN, deploy_options.namespace, sa_name, annotation_name, json_manifest)
     utils.check_output(cmd)
 
     # Download OCP Certificate as a secret
@@ -65,6 +66,7 @@ def deploy_oauth_reqs():
             with open(dst_file, "w+") as dst:
                 data = src.read()
                 data = data.replace("BASE64_CERT", ca_cert)
+                data = data.replace('REPLACE_NAMESPACE', deploy_options.namespace)
                 print("Deploying {}: {}".format(topic, dst_file))
                 dst.write(data)
         utils.apply(dst_file)
@@ -97,6 +99,7 @@ def deploy_prometheus_route():
     with open(src_file, "r") as src:
         with open(dst_file, "w+") as dst:
             data = src.read()
+            data = data.replace('REPLACE_NAMESPACE', deploy_options.namespace)
             data = data.replace("INGRESS_DOMAIN", ingress_domain)
             print("Deploying {}: {}".format(topic, dst_file))
             dst.write(data)
@@ -113,23 +116,31 @@ def deploy_prometheus_sub(olm_ns, cat_src):
     with open(src_file, "r") as src:
         with open(dst_file, "w+") as dst:
             data = src.read()
+            data = data.replace('REPLACE_NAMESPACE', deploy_options.namespace)
             data = data.replace("CAT_SRC", cat_src).replace("OLM_NAMESPACE", olm_ns)
             print("Deploying {}: {}".format(topic, dst_file))
             dst.write(data)
     utils.apply(dst_file)
-    utils.wait_for_rollout('deployment', 'prometheus-operator')
+    utils.wait_for_rollout('deployment', 'prometheus-operator', deploy_options.namespace)
 
 
 def deployer(src_file, topic):
     '''Wrapper for oc/kubectl apply -f'''
     src_file = os.path.join(os.getcwd(), src_file)
-    print("Deploying {}: {}".format(topic, src_file))
-    utils.apply(src_file)
+    dst_file = os.path.join(os.getcwd(), 'build', os.path.basename(src_file))
+    with open(src_file) as fp:
+        data = fp.read()
+    data = data.replace('REPLACE_NAMESPACE', deploy_options.namespace)
+    with open(dst_file, 'w') as fp:
+        fp.write(data)
+    print("Deploying {}: {}".format(topic ,dst_file))
+    utils.apply(dst_file)
+
 
 
 def main():
     '''Deploy Prometheus operator and Instance '''
-    if args.target != "oc-ingress":
+    if deploy_options.target != "oc-ingress":
         # Deploy Operator Group
         deployer('deploy/monitoring/prometheus/assisted-installer-operator-group.yaml',
                  'OperatorGroup')
@@ -142,7 +153,7 @@ def main():
         deployer('deploy/monitoring/prometheus/assisted-installer-k8s-prometheus-subscription-instance.yaml',
                  'Prometheus Instance on K8s')
         sleep(10)
-        utils.check_k8s_rollout('statefulset', 'prometheus-assisted-installer-prometheus')
+        utils.check_k8s_rollout('statefulset', 'prometheus-assisted-installer-prometheus', deploy_options.namespace)
         # Deploy Prom svc Monitor
         deployer('deploy/monitoring/prometheus/assisted-installer-prometheus-svc-monitor.yaml',
                  'Prometheus Service Monitor')
@@ -170,7 +181,7 @@ def main():
         deployer('deploy/monitoring/prometheus/assisted-installer-ocp-prometheus-subscription-instance.yaml',
                  'Prometheus Instance on OCP')
         sleep(10)
-        utils.check_k8s_rollout('statefulset', 'prometheus-assisted-installer-prometheus')
+        utils.check_k8s_rollout('statefulset', 'prometheus-assisted-installer-prometheus', deploy_options.namespace)
         # Deploy Prom svc Monitor
         deployer('deploy/monitoring/prometheus/assisted-installer-prometheus-svc-monitor.yaml',
                  'Prometheus Service Monitor')
