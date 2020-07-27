@@ -45,7 +45,7 @@ def deploy_oauth_reqs():
 
     # Download OCP Certificate as a secret
     cert_secret_name = 'openshift-custom-ca'
-    cmd = "{} get secret {} -n assisted-installer --no-headers".format(CMD_BIN, cert_secret_name)
+    cmd = "{} get secret {} -n {} --no-headers".format(CMD_BIN, deploy_options.namespace, cert_secret_name)
     cert_secret = utils.check_output(cmd)
     if not cert_secret:
         # Get OCP Certificate
@@ -163,7 +163,7 @@ def main():
             deployer('deploy/monitoring/prometheus/assisted-installer-operator-group.yaml',
                      'OperatorGroup')
         except:
-            cmd = "{} get OperatorGroup --no-headers".format(CMD_BIN)
+            cmd = "{} -n {} get OperatorGroup --no-headers".format(CMD_BIN, deploy_options.namespace)
             if not utils.check_output(cmd):
                 print("The creation of an OperatorGroup is Forbidden for you user please request a creation of one before execute this again, exiting...")
                 sys.exit(1)

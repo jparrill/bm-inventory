@@ -19,7 +19,7 @@ def get_service_host(service, target=None, domain="", namespace='assisted-instal
         reply = check_output("{} -n {} service --url {}".format(MINIKUBE_CMD, namespace, service))
         return re.sub("http://(.*):.*", r'\1', reply)
     elif target == "oc-ingress":
-        return "{}.{}".format(service, get_domain(domain, args.namespace))
+        return "{}.{}".format(service, get_domain(domain, namespace))
     else:
         cmd = '{kubecmd} -n {ns} get service {service} | grep {service}'.format(kubecmd=KUBECTL_CMD, ns=namespace, service=service)
         reply = check_output(cmd)[:-1].split()
@@ -87,7 +87,7 @@ def get_yaml_field(field, yaml_path):
 
 def check_if_exists(k8s_object, k8s_object_name, namespace="assisted-installer"):
     try:
-        cmd = "{} -n {} get -n {} {} {} --no-headers".format(KUBECTL_CMD, namespace, namespace, k8s_object, k8s_object_name)
+        cmd = "{} -n {} get {} {} --no-headers".format(KUBECTL_CMD, namespace, k8s_object, k8s_object_name)
         subprocess.check_output(cmd, stderr=None, shell=True).decode("utf-8")
         output = True
     except:
