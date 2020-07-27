@@ -59,7 +59,6 @@ def deploy_oauth_reqs():
         with open(src_file, "r") as src:
             with open(dst_file, "w+") as dst:
                 data = src.read()
-                data = data.replace("BASE64_CERT", ca_cert)
                 data = data.replace('REPLACE_NAMESPACE', deploy_options.namespace)
                 print("Deploying {}: {}".format(topic, dst_file))
                 dst.write(data)
@@ -93,8 +92,8 @@ def deploy_grafana_route():
         # I have not permissions, yes it's ugly...
         # This ingress should be there because of UI deployment
         json_path_ingress = '{.spec.rules[0].host}'
-        cmd = "{} get ingress assisted-installer -o jsonpath='{}'".format(
-            CMD_BIN, json_path_ingress)
+        cmd = "{} -n {} get ingress assisted-installer -o jsonpath='{}'".format(
+            CMD_BIN, deploy_options.namespace,  json_path_ingress)
         assisted_installer_ingress_domain = utils.check_output(cmd)
         if assisted_installer_ingress_domain.split(".")[0] != 'assisted-installer':
             print("Error recovering the ingress route")

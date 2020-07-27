@@ -45,7 +45,7 @@ def deploy_oauth_reqs():
 
     # Download OCP Certificate as a secret
     cert_secret_name = 'openshift-custom-ca'
-    cmd = "{} get secret {} -n {} --no-headers".format(CMD_BIN, deploy_options.namespace, cert_secret_name)
+    cmd = "{} -n {} get secret {} --no-headers".format(CMD_BIN, deploy_options.namespace, cert_secret_name)
     cert_secret = utils.check_output(cmd)
     if not cert_secret:
         # Get OCP Certificate
@@ -88,8 +88,8 @@ def deploy_prometheus_route():
         # I have not permissions, yes it's ugly...
         # This ingress should be there because of UI deployment
         json_path_ingress = '{.spec.rules[0].host}'
-        cmd = "{} get ingress assisted-installer -o jsonpath='{}'".format(
-            CMD_BIN, json_path_ingress)
+        cmd = "{} -n {} get ingress assisted-installer -o jsonpath='{}'".format(
+            CMD_BIN, deploy_options.namespace, json_path_ingress)
         assisted_installer_ingress_domain = utils.check_output(cmd)
         if assisted_installer_ingress_domain.split(".")[0] != 'assisted-installer':
             print("Error recovering the ingress route")
